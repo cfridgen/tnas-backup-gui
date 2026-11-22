@@ -301,6 +301,7 @@ async function searchFiles(q) {
 }
 
 const isMac = /Mac OS X|Macintosh/.test(navigator.userAgent);
+const isLinux = /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent);
 
 function noPlay(d) {
   const ext = (d.name.match(/\.([^.]+)$/) || [, ''])[1].toUpperCase();
@@ -310,6 +311,7 @@ function noPlay(d) {
     <div class="row">
       <a class="btn-link" id="pM3u"><button class="primary">▶ Im Videoplayer öffnen</button></a>
       ${isMac ? '<button id="pIina">In IINA öffnen</button>' : ''}
+      ${isLinux ? '<button id="pVlc" title="Benötigt einen vlc://-Link-Vermittler (siehe README)">In VLC öffnen</button>' : ''}
       <button id="pLink">Stream-Link anzeigen</button>
     </div>
     <div id="pLinkBox" class="hidden"><input id="pLinkIn" readonly class="w100">
@@ -326,6 +328,9 @@ function bindNoPlay(root, path) {
   const link = async () => (await api('files/streamlink', { root, path })).url;
   if ($('#pIina')) $('#pIina').onclick = async () => {
     try { location.href = 'iina://weblink?url=' + encodeURIComponent(await link()); } catch (e) { toast(e.message, true); }
+  };
+  if ($('#pVlc')) $('#pVlc').onclick = async () => {
+    try { location.href = 'vlc://open?url=' + encodeURIComponent(await link()); } catch (e) { toast(e.message, true); }
   };
   $('#pLink').onclick = async () => {
     try { $('#pLinkIn').value = await link(); $('#pLinkBox').classList.remove('hidden'); $('#pLinkIn').select(); } catch (e) { toast(e.message, true); }

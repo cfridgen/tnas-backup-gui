@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=VLC (Stream-Link)
+Exec=vlc-url %u
+Icon=vlc
+NoDisplay=true
+MimeType=x-scheme-handler/vlc;
