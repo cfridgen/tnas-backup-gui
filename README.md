@@ -13,6 +13,7 @@ NAS, German UI.*
 |---|---|
 | **Übersicht** | System, CPU/RAM/Temperatur, Speicherbelegung, Festplattenzustand, Netzwerk, Wake-on-LAN-Status, Stand des letzten Backups (Warnung, wenn älter als 36 h) |
 | **Datenträger** | Dateisysteme, Festplatten mit SMART-Werten (schlafende Platten werden nicht geweckt) |
+| **Dateien** | Dateibrowser über alle Freigaben **und jede Backup-Version**, Suche nach Dateinamen, Anzeige von Text (UTF-8/Latin-1), Bildern, Audio, Video, PDF und Hex-Vorschau, Download; je Datei die **Versionsgeschichte** über alle Backup-Stände (nur lesend) |
 | **Freigaben (SMB)** | anlegen / bearbeiten / entfernen, Rechte je Benutzer (lesen+schreiben / nur lesen / kein Zugriff), Gastzugang, „für alle nur lesen“, Sichtbarkeit, Papierkorb |
 | **Backup-Versionen** | btrfs-Schnappschüsse anzeigen und löschen; optional schreibgeschützte Freigabe `Backup-Versionen`, um ältere Stände direkt im Finder/Explorer zu öffnen |
 | **Benutzer** | anzeigen, Passwort ändern, anlegen, löschen, Administrator-Recht |
@@ -58,14 +59,19 @@ Danach: `http://<nas>:8181/`. Das Skript sichert alle geänderten Dateien nach `
 Optional `/etc/tnas-backup-gui/config.json` – alle Felder mit Vorgaben siehe [`config.go`](config.go), z. B.:
 
 ```json
-{ "listen": ":8181", "data_dir": "/mnt/md0", "snapshot_dir": "/mnt/md0/.snapshots", "backup_source": "OMV" }
+{ "listen": ":8181", "data_dir": "/mnt/md0", "snapshot_dir": "/mnt/md0/.snapshots",
+  "backup_dir": "/mnt/md0/OMV-Backup", "backup_source": "OMV" }
 ```
 
 ### Backup-Versionen
 
-Die Seite *Backup-Versionen* erwartet Schnappschüsse im Format `<snapshot_dir>/omv-JJJJ-MM-TT_HHMM/<Freigabe>/`
-(je Freigabe ein schreibgeschütztes btrfs-Subvolume), wie sie ein nächtliches rsync-Backup von einem anderen
-Server anlegt. Die Aufbewahrung steuert das Backup-Skript auf der Quelle.
+Die Seite *Backup-Versionen* erwartet Schnappschüsse im Format `<snapshot_dir>/omv-JJJJ-MM-TT_HHMM/<Ordner>/`
+– je Unterordner von `backup_dir` ein schreibgeschütztes btrfs-Subvolume –, wie sie ein nächtliches rsync-Backup
+von einem anderen Server anlegt. Die Aufbewahrung steuert das Backup-Skript auf der Quelle. Für die
+Versionsgeschichte im Dateibrowser wird `<backup_dir>/<Ordner>/<Pfad>` dem Pfad in jeder Version zugeordnet.
+
+Der Dateibrowser prüft jeden Pfad nach Auflösen von Symlinks gegen die Wurzel der Freigabe bzw. Version;
+Inhalte werden ohne Ausführungsrechte (`Content-Security-Policy: sandbox`) ausgeliefert.
 
 ### Deinstallation / Rückweg zu TOS
 

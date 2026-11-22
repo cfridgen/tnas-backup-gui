@@ -98,6 +98,12 @@ func main() {
 	mux.HandleFunc("POST /api/services/restart", a(app.apiServiceRestart))
 	mux.HandleFunc("POST /api/power", a(app.apiPower))
 	mux.HandleFunc("GET /api/logs", a(app.apiLogs))
+	mux.HandleFunc("GET /api/files/roots", a(app.apiFileRoots))
+	mux.HandleFunc("GET /api/files/list", a(app.apiFileList))
+	mux.HandleFunc("GET /api/files/search", a(app.apiFileSearch))
+	mux.HandleFunc("GET /api/files/view", a(app.apiFileView))
+	mux.HandleFunc("GET /api/files/raw", a(app.apiFileRaw))
+	mux.HandleFunc("GET /api/files/history", a(app.apiFileHistory))
 
 	static, _ := fs.Sub(webFS, "web")
 	files := http.FileServer(http.FS(static))

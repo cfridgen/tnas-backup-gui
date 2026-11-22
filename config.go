@@ -11,6 +11,7 @@ type Config struct {
 	Listen        string `json:"listen"`         // Adresse der Weboberfläche
 	DataDir       string `json:"data_dir"`       // Datenvolume (Freigaben nur darunter)
 	SnapshotDir   string `json:"snapshot_dir"`   // btrfs-Schnappschüsse des Backups
+	BackupDir     string `json:"backup_dir"`     // Ordner, dessen Unterordner geschnappschusst werden
 	BackupSource  string `json:"backup_source"`  // Anzeigename der Backup-Quelle (z. B. "OMV")
 	BackupMaxAgeH int    `json:"backup_max_age_h"`
 	StateDir      string `json:"state_dir"`   // eigene Daten (Freigaben-Konfiguration)
@@ -27,6 +28,7 @@ func defaultConfig() Config {
 		Listen:        ":8181",
 		DataDir:       "/mnt/md0",
 		SnapshotDir:   "/mnt/md0/.snapshots",
+		BackupDir:     "/mnt/md0/OMV-Backup",
 		BackupSource:  "OMV",
 		BackupMaxAgeH: 36,
 		StateDir:      "/etc/tnas-backup-gui",

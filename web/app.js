@@ -51,6 +51,7 @@ async function api(path, body) {
 // ---------- Dialog ----------
 function modal(html, onOk, okLabel = 'Speichern', danger = false) {
   const box = $('#modalBox');
+  box.classList.remove('wide');
   box.innerHTML = html + `<div class="err" id="mErr"></div><div class="modal-actions">
     <button id="mCancel">Abbrechen</button>${onOk ? `<button id="mOk" class="${danger ? 'danger solid' : 'primary'}">${esc(okLabel)}</button>` : ''}</div>`;
   $('#modal').classList.remove('hidden');
@@ -82,6 +83,9 @@ $('#loginForm').onsubmit = async e => {
 };
 $('#logoutBtn').onclick = async () => { try { await api('logout', {}); } catch (_) { } S = { user: null, csrf: '' }; showLogin(); };
 $('#navToggle').onclick = () => $('#nav').classList.toggle('open');
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#modal').classList.contains('hidden')) { $('#modal').classList.add('hidden'); $('#modalBox').innerHTML = ''; }
+});
 
 function start() {
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
@@ -211,12 +215,133 @@ function shareDialog(s, d) {
   });
 }
 
+// Dateien
+const F = { root: '', path: '', roots: null };
+const qs = o => Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+const joinPath = (a, b) => (a ? a.replace(/\/$/, '') + '/' : '') + b;
+
+function rootLabel(root) {
+  if (!F.roots) return root;
+  if (root.startsWith('share:')) return root.slice(6);
+  const [snap, sub] = root.slice(5).split('/');
+  const s = F.roots.snapshots.find(x => x.name === snap);
+  return `${sub} – Version ${s ? fmtTime(s.time) : snap}`;
+}
+
+pages.files = async () => {
+  F.roots = await api('files/roots');
+  if (!F.root) {
+    const pref = F.roots.shares.find(s => s.name === 'OMV-Backup') || F.roots.shares[0];
+    F.root = pref ? 'share:' + pref.name : '';
+  }
+  const opts = `<optgroup label="Freigaben (aktueller Stand)">${F.roots.shares.map(s => `<option value="share:${esc(s.name)}">${esc(s.name)}</option>`).join('')}</optgroup>` +
+    (F.roots.snapshots || []).map(sn => `<optgroup label="Backup-Version ${esc(fmtTime(sn.time))}">${sn.shares.map(sub =>
+      `<option value="snap:${esc(sn.name)}/${esc(sub)}">${esc(sub)} – ${esc(fmtTime(sn.time))}</option>`).join('')}</optgroup>`).join('');
+  $('#main').innerHTML = `<h1>Dateien</h1>
+    <div class="toolbar"><select class="root-select" id="fRoot">${opts}</select>
+      <form id="fSearch" class="row"><input id="fQ" placeholder="Dateiname suchen (ab hier)" size="28"><button>Suchen</button></form></div>
+    <div id="fMode"></div><div class="crumbs" id="fCrumbs"></div><div class="card table-wrap" id="fList"><p class="muted">Lade …</p></div>`;
+  $('#fRoot').value = F.root;
+  $('#fRoot').onchange = () => { F.root = $('#fRoot').value; F.path = ''; listDir(); };
+  $('#fSearch').onsubmit = e => { e.preventDefault(); searchFiles($('#fQ').value); };
+  await listDir();
+};
+
+function drawHead() {
+  $('#fMode').innerHTML = F.root.startsWith('snap:') ? `<div class="mode-banner">🕘 Du siehst eine <b>Backup-Version</b>: ${esc(rootLabel(F.root))} (nur lesen)</div>` : '';
+  const parts = F.path ? F.path.split('/') : [];
+  let acc = '';
+  $('#fCrumbs').innerHTML = `<a data-p="">📁 ${esc(F.root.startsWith('share:') ? F.root.slice(6) : rootLabel(F.root))}</a>` +
+    parts.map(p => { acc = joinPath(acc, p); return `<span>›</span><a data-p="${esc(acc)}">${esc(p)}</a>`; }).join('');
+  $$('#fCrumbs a').forEach(a => a.onclick = () => { F.path = a.dataset.p; listDir(); });
+}
+
+function fileRows(entries, withPath) {
+  return entries.map(e => `<tr><td class="name" data-name="${esc(withPath ? e.path : e.name)}" data-dir="${e.dir ? 1 : 0}">${e.dir ? '📁' : '📄'} ${esc(withPath ? e.path : e.name)}</td>
+    <td class="num">${e.dir ? '' : bytes(e.size)}</td><td class="num">${fmtTime(e.mtime)}</td></tr>`).join('');
+}
+
+function bindRows(base) {
+  $$('#fList td.name').forEach(td => td.onclick = () => {
+    const p = joinPath(base, td.dataset.name);
+    if (td.dataset.dir === '1') { F.path = p; listDir(); } else viewFile(F.root, p);
+  });
+}
+
+async function listDir() {
+  drawHead();
+  $('#fList').innerHTML = '<p class="muted">Lade …</p>';
+  try {
+    const d = await api('files/list?' + qs({ root: F.root, path: F.path }));
+    const up = F.path ? `<tr><td class="name" id="fUp">⬆️ ..</td><td></td><td></td></tr>` : '';
+    $('#fList').innerHTML = `<table class="files"><thead><tr><th>Name</th><th class="num">Größe</th><th class="num">Geändert</th></tr></thead>
+      <tbody>${up}${fileRows(d.entries, false) || '<tr><td colspan="3" class="muted">Ordner ist leer</td></tr>'}</tbody></table>
+      ${d.truncated ? '<p class="muted">Nur die ersten 5000 Einträge – bitte die Suche benutzen.</p>' : ''}`;
+    bindRows(F.path);
+    if ($('#fUp')) $('#fUp').onclick = () => { F.path = F.path.split('/').slice(0, -1).join('/'); listDir(); };
+  } catch (e) { $('#fList').innerHTML = `<div class="banner bad">${esc(e.message)}</div>`; }
+}
+
+async function searchFiles(q) {
+  $('#fList').innerHTML = '<p class="muted">Suche … (bei großen Ordnern bis zu 15 Sekunden)</p>';
+  try {
+    const d = await api('files/search?' + qs({ root: F.root, path: F.path, q }));
+    $('#fList').innerHTML = `<p class="muted">${d.results.length} Treffer für „${esc(q)}“${F.path ? ' in ' + esc(F.path) : ''}${d.truncated ? ' (nur die ersten 500)' : ''}${d.timeout ? ' – Suche nach 15 s abgebrochen, bitte genauer suchen oder in einen Unterordner wechseln' : ''}
+      <button id="fBack">Zurück zum Ordner</button></p>
+      <table class="files"><thead><tr><th>Pfad</th><th class="num">Größe</th><th class="num">Geändert</th></tr></thead><tbody>${fileRows(d.results, true)}</tbody></table>`;
+    bindRows('');
+    $('#fBack').onclick = listDir;
+  } catch (e) { $('#fList').innerHTML = `<div class="banner bad">${esc(e.message)}</div>`; }
+}
+
+async function viewFile(root, path) {
+  const box = $('#modalBox');
+  box.classList.add('wide');
+  box.innerHTML = '<p class="muted">Lade …</p>';
+  $('#modal').classList.remove('hidden');
+  const close = () => { $('#modal').classList.add('hidden'); box.classList.remove('wide'); box.innerHTML = ''; };
+  const raw = (dl) => '/api/files/raw?' + qs(Object.assign({ root, path }, dl ? { download: 1 } : {}));
+  let d;
+  try { d = await api('files/view?' + qs({ root, path })); } catch (e) { box.innerHTML = `<div class="banner bad">${esc(e.message)}</div><div class="modal-actions"><button id="vClose">Schließen</button></div>`; $('#vClose').onclick = close; return; }
+  let content;
+  switch (d.kind) {
+    case 'text': content = `<pre class="viewer-text">${esc(d.text)}</pre>${d.truncated ? '<p class="muted">Nur die ersten 512 KB werden angezeigt.</p>' : ''}${d.encoding !== 'UTF-8' ? `<p class="muted">Zeichensatz: ${esc(d.encoding)}</p>` : ''}`; break;
+    case 'image': content = `<img class="viewer-media" src="${raw()}" alt="">`; break;
+    case 'audio': content = `<audio class="viewer-media" controls src="${raw()}"></audio>`; break;
+    case 'video': content = `<video class="viewer-media" controls src="${raw()}"></video>`; break;
+    case 'pdf': content = `<iframe class="viewer-pdf" src="${raw()}"></iframe>`; break;
+    default: content = `<p class="muted">Binärdatei (${esc(d.mime)}) – Vorschau der ersten Bytes:</p><pre class="viewer-text">${esc(d.hex)}</pre>`;
+  }
+  box.innerHTML = `<div class="row"><h2>${esc(d.name)}</h2><span class="spacer"></span><span class="muted">${bytes(d.size)} · geändert ${fmtTime(d.mtime)}</span></div>
+    ${root.startsWith('snap:') ? `<div class="mode-banner">🕘 Backup-Version: ${esc(rootLabel(root))}</div>` : ''}
+    <p class="muted"><code>${esc(path)}</code></p>${content}
+    <h2 class="mt">Versionen dieser Datei</h2><div id="vHist" class="muted">Lade …</div>
+    <div class="modal-actions"><a href="${raw(true)}"><button>⬇ Herunterladen</button></a><button id="vClose" class="primary">Schließen</button></div>`;
+  $('#vClose').onclick = close;
+  try {
+    const h = await api('files/history?' + qs({ root, path }));
+    if (!h.versions.length) { $('#vHist').textContent = h.note || 'Keine Versionen.'; return; }
+    let prev = null;
+    const rows = h.versions.map(v => {
+      const same = prev && v.exists && prev.exists && prev.size === v.size && prev.mtime === v.mtime;
+      if (v.exists) prev = v;
+      const sel = v.root === root && v.path === path;
+      return `<tr class="${v.exists ? '' : 'missing'} ${sel ? 'sel' : ''}"><td>${v.current ? '<b>Aktuell</b>' : fmtTime(v.time)}</td>
+        <td>${v.exists ? bytes(v.size) : '–'}</td><td>${v.exists ? fmtTime(v.mtime) : 'nicht vorhanden'}</td><td>${same ? 'unverändert' : v.exists ? '' : ''}</td>
+        <td class="actions">${v.exists && !sel ? `<button data-vr="${esc(v.root)}" data-vp="${esc(v.path)}">Anzeigen</button>` : ''}
+        ${v.exists ? `<a href="/api/files/raw?${qs({ root: v.root, path: v.path, download: 1 })}"><button>⬇</button></a>` : ''}</td></tr>`;
+    }).join('');
+    $('#vHist').innerHTML = `<div class="table-wrap"><table class="vers"><thead><tr><th>Stand</th><th>Größe</th><th>Datei geändert</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    $$('#vHist [data-vr]').forEach(b => b.onclick = () => viewFile(b.dataset.vr, b.dataset.vp));
+  } catch (e) { $('#vHist').textContent = e.message; }
+}
+
 // Backup-Versionen
 pages.snapshots = async () => {
   const d = await api('snapshots');
   const rows = (d.snapshots || []).map((s, i) => `<tr><td><b>${fmtTime(s.time)}</b> <span class="muted">${ago(s.time)}</span>${i === 0 ? ' ' + pill('ok', 'neuester') : ''}</td>
     <td>${s.shares.length} <span class="muted">(${esc(s.shares.join(', '))})</span></td><td><code>${esc(s.name)}</code></td>
-    <td class="actions"><button class="danger" data-del="${esc(s.name)}">Löschen</button></td></tr>`).join('');
+    <td class="actions"><button data-browse="${esc(s.name)}/${esc(s.shares[0] || '')}">Durchsuchen</button> <button class="danger" data-del="${esc(s.name)}">Löschen</button></td></tr>`).join('');
   $('#main').innerHTML = `<h1>Backup-Versionen</h1>
     <div class="card"><p>Nach jedem nächtlichen Backup von <b>${esc(d.source)}</b> wird ein schreibgeschützter btrfs-Schnappschuss jeder Freigabe angelegt.
     Aufbewahrung (steuert das Backup-Skript auf ${esc(d.source)}): 7 Tage, 4 Wochen, 6 Monate. Schnappschüsse belegen nur Platz für geänderte Daten.</p>
@@ -228,6 +353,7 @@ pages.snapshots = async () => {
     try { await api('snapshots/share', { on: e.target.checked }); toast(e.target.checked ? 'Freigabe eingerichtet' : 'Freigabe entfernt'); }
     catch (err) { toast(err.message, true); e.target.checked = !e.target.checked; }
   };
+  $$('[data-browse]').forEach(b => b.onclick = () => { F.root = 'snap:' + b.dataset.browse; F.path = ''; location.hash = '#/files'; });
   $$('[data-del]').forEach(b => b.onclick = () => confirmBox('Version löschen',
     `Die Backup-Version <b>${esc(b.dataset.del)}</b> wird endgültig gelöscht. Die aktuellen Daten sind davon nicht betroffen.`, 'Löschen',
     async () => { await api('snapshots/delete', { name: b.dataset.del }); toast('Version gelöscht'); route(); }));
