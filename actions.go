@@ -124,6 +124,7 @@ var logFiles = map[string]string{
 	"gui":      "/var/log/tnas-backup-gui.log",
 	"messages": "/var/log/messages",
 	"samba":    "/var/log/log.smbd",
+	"cloud":    cloudLog,
 }
 
 func tail(path string, n int) []string {

@@ -145,3 +145,5 @@ select.root-select { min-width: 280px; max-width: 100%; }
   #whoami { display: none; }
   .form .two { grid-template-columns: 1fr; }
 }
+.small { font-size: 12px; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }

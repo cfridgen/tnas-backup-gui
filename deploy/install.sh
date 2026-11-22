@@ -28,6 +28,14 @@ cat "$(dirname "$0")/tnas-backup-gui.init" > /etc/init.d/tnas-backup-gui
 chmod 755 /etc/init.d/tnas-backup-gui
 cp "$(dirname "$0")/uninstall.sh" $DIR/uninstall.sh 2>/dev/null || true
 
+# optional: rclone (+ CA-Zertifikate) für das Cloud-Backup, wenn neben install.sh abgelegt
+for f in rclone cacert.pem; do
+    if [ -f "$(dirname "$0")/$f" ]; then
+        cp "$(dirname "$0")/$f" $DIR/$f.new && mv $DIR/$f.new $DIR/$f
+        [ $f = rclone ] && chmod 755 $DIR/rclone && echo "rclone installiert: $($DIR/rclone version 2>/dev/null | head -1)"
+    fi
+done
+
 # Samba: TOS-Generator durch die GUI ersetzen (mit Rückfall)
 if grep -q '^    /sbin/svrcfg-all -c smb$' /etc/init.d/samba; then
     sed -i 's#^    /sbin/svrcfg-all -c smb$#    '$DIR'/tnas-backup-gui -render-smb -config /etc/tnas-backup-gui/config.json || /sbin/svrcfg-all -c smb  \# tnas-backup-gui#' /etc/init.d/samba

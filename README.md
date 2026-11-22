@@ -15,6 +15,7 @@ NAS, German UI.*
 | **Datenträger** | Dateisysteme, Festplatten mit SMART-Werten (schlafende Platten werden nicht geweckt) |
 | **Dateien** | Dateibrowser über alle Freigaben **und jede Backup-Version**, Suche nach Dateinamen, Anzeige von Text (UTF-8/Latin-1), Bildern, Audio, Video, PDF und Hex-Vorschau, Download; je Datei die **Versionsgeschichte** über alle Backup-Stände (nur lesend). Formate, die Browser nicht abspielen (AVI, MPEG, VOB, TS, WMV, H.265 …), lassen sich per Klick im lokalen Videoplayer (VLC, IINA) streamen – über eine Abspielliste bzw. einen befristeten, an die IP gebundenen Stream-Link (unter Linux optional per Ein-Klick, siehe [`extras/linux-vlc-url`](extras/linux-vlc-url)) |
 | **Freigaben (SMB)** | anlegen / bearbeiten / entfernen, Rechte je Benutzer (lesen+schreiben / nur lesen / kein Zugriff), Gastzugang, „für alle nur lesen“, Sichtbarkeit, Papierkorb |
+| **Cloud-Backup** | Freigaben zusätzlich nach **Microsoft OneDrive** oder **Google Drive** sichern (über [rclone](https://rclone.org)), optional verschlüsselt und mit datierten Versionen geänderter/gelöschter Dateien; Anmeldung beim Anbieter im eigenen Browser (kein Passwort auf dem NAS); nächtlicher Lauf über `-cloud-run` mit Zeitlimit |
 | **Backup-Versionen** | btrfs-Schnappschüsse anzeigen und löschen; optional schreibgeschützte Freigabe `Backup-Versionen`, um ältere Stände direkt im Finder/Explorer zu öffnen |
 | **Benutzer** | anzeigen, Passwort ändern, anlegen, löschen, Administrator-Recht |
 | **System** | Dienste (Samba neu starten), Protokolle, Ausschalten/Neustart |
@@ -72,6 +73,24 @@ Versionsgeschichte im Dateibrowser wird `<backup_dir>/<Ordner>/<Pfad>` dem Pfad 
 
 Der Dateibrowser prüft jeden Pfad nach Auflösen von Symlinks gegen die Wurzel der Freigabe bzw. Version;
 Inhalte werden ohne Ausführungsrechte (`Content-Security-Policy: sandbox`) ausgeliefert.
+
+### Cloud-Backup
+
+Voraussetzung: das statische rclone-Programm für die Architektur des NAS (z. B. `rclone-current-linux-arm64.zip` von
+<https://rclone.org/downloads/>) als `/opt/tnas-backup-gui/rclone` – oder vor der Installation neben `install.sh` legen.
+Fehlen auf dem NAS aktuelle CA-Zertifikate, zusätzlich `cacert.pem` (<https://curl.se/ca/cacert.pem>) daneben legen.
+
+* **Konto verbinden**: Anbieter wählen → Anmeldeseite öffnet sich im eigenen Browser → Zugriff erlauben → der Browser
+  landet auf einer nicht erreichbaren Adresse `http://127.0.0.1:53682/?…code=…` → diese Adresse in die Oberfläche kopieren.
+  Das Token liegt in `/etc/tnas-backup-gui/rclone.conf` (nur root).
+* **Auftrag**: Ziel, Ordner beim Anbieter, Freigaben (= Unterordner von `backup_dir`), Verschlüsselung (rclone crypt,
+  Passwort mind. 12 Zeichen – ohne Passwort keine Wiederherstellung!), Versionen. Gesichert wird der neueste Schnappschuss
+  nach `<ordner>/aktuell/<freigabe>`, mit Versionen wandern geänderte/gelöschte Dateien nach `<ordner>/versionen/<datum>/`.
+* **Nachts**: das Backup-Skript der Quelle ruft nach dem Anlegen der Schnappschüsse
+  `ssh root@<nas> /opt/tnas-backup-gui/tnas-backup-gui -cloud-run` auf und schaltet den NAS erst danach aus.
+  Ein Lauf dauert höchstens `cloud_max_hours` (Vorgabe 6); große Erst-Uploads verteilen sich so auf mehrere Nächte.
+* **Wiederherstellen**: unverschlüsselt direkt über die Weboberfläche des Anbieters; verschlüsselt mit rclone und
+  derselben Konfiguration, z. B. `rclone --config /etc/tnas-backup-gui/rclone.conf copy onedrive_crypt:TNAS-Backup/aktuell/Dokumente/Steuer /tmp/steuer`.
 
 ### Deinstallation / Rückweg zu TOS
 

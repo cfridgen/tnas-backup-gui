@@ -21,6 +21,8 @@ type Config struct {
 	AdminGroup    string `json:"admin_group"` // nur Mitglieder dürfen sich anmelden
 	TosNasDB      string `json:"tos_nasdb"`   // TOS-Datenbank (Passwort-Abgleich für die alte GUI), leer = aus
 	SessionHours  int    `json:"session_hours"`
+	RcloneBin     string `json:"rclone_bin"`      // rclone für das Cloud-Backup
+	CloudMaxHours int    `json:"cloud_max_hours"` // höchstens so lange je nächtlichem Cloud-Lauf
 }
 
 func defaultConfig() Config {
@@ -38,6 +40,8 @@ func defaultConfig() Config {
 		AdminGroup:    "admin",
 		TosNasDB:      "/etc/base/nasdb",
 		SessionHours:  8,
+		RcloneBin:     "/opt/tnas-backup-gui/rclone",
+		CloudMaxHours: 6,
 	}
 }
 

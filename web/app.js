@@ -414,6 +414,114 @@ pages.snapshots = async () => {
     async () => { await api('snapshots/delete', { name: b.dataset.del }); toast('Version gelöscht'); route(); }));
 };
 
+// Cloud-Backup
+pages.cloud = async () => {
+  const d = await api('cloud');
+  const kindName = k => d.kinds[k] || k;
+  const stPill = st => !st ? pill('', 'noch nie') : st.state === 'ok' ? pill('ok', 'ok') : st.state === 'laeuft' ? pill('warn', 'läuft') :
+    st.state === 'teilweise' ? pill('warn', 'teilweise') : pill('bad', 'Fehler');
+  const targets = (d.targets || []).map(t => `<tr><td><b>${esc(t.name)}</b></td><td>${esc(kindName(t.kind))}</td>
+    <td>${t.crypt ? pill('ok', 'Verschlüsselung eingerichtet') : '<span class="muted">–</span>'}</td><td class="muted" data-about="${esc(t.name)}"></td>
+    <td class="actions"><button data-test="${esc(t.name)}">Verbindung prüfen</button> <button class="danger" data-tdel="${esc(t.name)}">Entfernen</button></td></tr>`).join('');
+  const jobs = (d.jobs || []).map(j => {
+    const st = d.status[j.id];
+    return `<tr><td>${j.enabled ? pill('ok', 'aktiv') : pill('', 'aus')}</td><td>${esc(j.sources.join(', '))}</td>
+    <td><code>${esc(j.target)}:${esc(j.folder)}</code>${j.encrypt ? ' 🔒' : ''}${j.versions ? ' <span class="muted">+ Versionen</span>' : ''}</td>
+    <td>${stPill(st)} ${st && st.end && st.state !== 'laeuft' ? `<span class="muted">${ago(st.end)}</span>` : ''}<div class="muted small">${esc(st ? st.message : '')}</div></td>
+    <td class="actions">${d.running === j.id ? '<button data-stop="1">Abbrechen</button>' : `<button data-run="${esc(j.id)}" ${d.running ? 'disabled' : ''}>Jetzt sichern</button>`}
+    <button data-edit="${esc(j.id)}">Bearbeiten</button> <button class="danger" data-jdel="${esc(j.id)}">Löschen</button></td></tr>`;
+  }).join('');
+  $('#main').innerHTML = `<h1>Cloud-Backup</h1>
+    ${d.rclone ? '' : `<div class="banner bad">rclone fehlt (<code>${esc(d.rclone_bin)}</code>) – siehe README, Abschnitt Cloud-Backup.</div>`}
+    <div class="card"><p>Sichert ausgewählte Freigaben zusätzlich zu <b>Microsoft OneDrive</b> oder <b>Google Drive</b> – als Schutz bei Brand, Diebstahl
+    oder Überspannung. Gesichert wird jeweils der neueste Backup-Stand von ${esc(d.source)}. Der Upload startet nachts automatisch nach dem Backup
+    (höchstens ${d.max_hours} Std pro Nacht, danach geht es in der nächsten Nacht weiter) oder hier von Hand.</p>
+    <p class="muted">Empfehlung: <b>verschlüsseln</b> – dann sieht der Anbieter nur unlesbare Daten. Das Passwort unbedingt sicher aufbewahren:
+    ohne es lassen sich die Daten nicht wiederherstellen. Mit „Versionen“ werden geänderte oder gelöschte Dateien nicht überschrieben,
+    sondern nach <code>versionen/&lt;Datum&gt;/</code> verschoben (belegt mehr Platz).</p>
+    <p class="muted small">${esc(d.rclone_version)}</p></div>
+    <h2>Ziele (Konten)</h2><div class="toolbar"><button class="primary" id="addTarget" ${d.rclone ? '' : 'disabled'}>+ Konto verbinden</button></div>
+    <div class="card table-wrap"><table><thead><tr><th>Name</th><th>Anbieter</th><th>Verschlüsselung</th><th>Belegung</th><th></th></tr></thead>
+    <tbody>${targets || '<tr><td colspan="5" class="muted">Noch kein Konto verbunden</td></tr>'}</tbody></table></div>
+    <h2>Aufträge</h2><div class="toolbar"><button class="primary" id="addJob" ${(d.targets || []).length ? '' : 'disabled'}>+ Auftrag anlegen</button>
+    ${d.running ? `<span class="muted">Upload läuft …</span>` : (d.jobs || []).length ? '<button id="runAll">Alle aktiven jetzt sichern</button>' : ''}</div>
+    <div class="card table-wrap"><table><thead><tr><th></th><th>Freigaben</th><th>Ziel</th><th>Letzter Lauf</th><th></th></tr></thead>
+    <tbody>${jobs || '<tr><td colspan="5" class="muted">Noch kein Auftrag</td></tr>'}</tbody></table></div>
+    <p class="muted">Protokoll: <a href="#/logs?name=cloud">Cloud-Backup</a></p>`;
+
+  $('#addTarget') && ($('#addTarget').onclick = () => {
+    const box = modal(`<h2>Konto verbinden</h2><div class="form">
+      <label>Anbieter<select id="cKind">${Object.entries(d.kinds).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
+      <label>Name für dieses Ziel (z. B. onedrive, gdrive)<input id="cName" autocomplete="off" value="onedrive"></label>
+      <p><button id="cStart" class="primary">1. Anmeldung beim Anbieter öffnen</button></p>
+      <div id="cStep2" class="hidden"><p>Im neuen Fenster anmelden und den Zugriff erlauben. Danach zeigt der Browser <b>„Seite nicht erreichbar“</b> –
+      das ist richtig. Die <b>komplette Adresse</b> aus der Adresszeile (beginnt mit <code>http://127.0.0.1:53682/</code>) kopieren und hier einfügen:</p>
+      <label>2. Adresse nach der Anmeldung<input id="cRedirect" autocomplete="off" placeholder="http://127.0.0.1:53682/?state=…&code=…"></label></div></div>`,
+      async b => {
+        if ($('#cStep2', b).classList.contains('hidden')) throw new Error('Zuerst die Anmeldung öffnen');
+        await api('cloud/auth/finish', { name: $('#cName', b).value.trim(), redirect: $('#cRedirect', b).value.trim() });
+        toast('Konto verbunden'); route();
+      }, 'Verbinden');
+    $('#cKind', box).onchange = e => { $('#cName', box).value = e.target.value === 'drive' ? 'gdrive' : 'onedrive'; };
+    $('#cStart', box).onclick = async ev => {
+      ev.preventDefault(); $('#mErr').textContent = '';
+      try {
+        const w = window.open('about:blank', '_blank');
+        const r = await api('cloud/auth/start', { kind: $('#cKind', box).value });
+        if (w) w.location = r.url; else window.open(r.url, '_blank');
+        $('#cStep2', box).classList.remove('hidden'); $('#cRedirect', box).focus();
+      } catch (e) { $('#mErr').textContent = e.message; }
+    };
+  });
+
+  const jobForm = (j, isNew) => {
+    const tgts = d.targets.map(t => `<option value="${esc(t.name)}" ${t.name === j.target ? 'selected' : ''}>${esc(t.name)} (${esc(kindName(t.kind))})</option>`).join('');
+    const srcs = d.sources.map(s => `<label class="check"><input type="checkbox" data-src="${esc(s)}" ${j.sources.includes(s) ? 'checked' : ''}> ${esc(s)}</label>`).join('');
+    const box = modal(`<h2>${isNew ? 'Auftrag anlegen' : 'Auftrag bearbeiten'}</h2><div class="form">
+      <label>Ziel<select id="jTarget">${tgts}</select></label>
+      <label>Ordner beim Anbieter<input id="jFolder" value="${esc(j.folder)}" autocomplete="off"></label>
+      <div><b>Freigaben</b><div class="checks">${srcs || '<span class="muted">Keine Backup-Ordner gefunden</span>'}</div></div>
+      <label class="check"><input type="checkbox" id="jEnc" ${j.encrypt ? 'checked' : ''}> Verschlüsseln (empfohlen)</label>
+      <div id="jPwBox" class="hidden"><label>Passwort für die Verschlüsselung (mind. 12 Zeichen) – gut aufbewahren!<input id="jPw" type="password" autocomplete="new-password"></label>
+      <label>Wiederholen<input id="jPw2" type="password" autocomplete="new-password"></label></div>
+      <label class="check"><input type="checkbox" id="jVer" ${j.versions ? 'checked' : ''}> Geänderte/gelöschte Dateien als Versionen behalten</label>
+      <label class="check"><input type="checkbox" id="jOn" ${j.enabled ? 'checked' : ''}> Nachts automatisch ausführen</label></div>`,
+      async b => {
+        const job = { id: j.id, target: $('#jTarget', b).value, folder: $('#jFolder', b).value.trim(),
+          sources: $$('[data-src]', b).filter(x => x.checked).map(x => x.dataset.src),
+          encrypt: $('#jEnc', b).checked, versions: $('#jVer', b).checked, enabled: $('#jOn', b).checked };
+        let pw = '';
+        if (!$('#jPwBox', b).classList.contains('hidden')) {
+          pw = $('#jPw', b).value; if (pw !== $('#jPw2', b).value) throw new Error('Passwörter stimmen nicht überein');
+        }
+        await api('cloud/job/save', { job, cryptpassword: pw }); toast('Auftrag gespeichert'); route();
+      });
+    const upd = () => {
+      const t = d.targets.find(x => x.name === $('#jTarget', box).value);
+      $('#jPwBox', box).classList.toggle('hidden', !($('#jEnc', box).checked && t && !t.crypt));
+    };
+    $('#jEnc', box).onchange = upd; $('#jTarget', box).onchange = upd; upd();
+  };
+  $('#addJob').onclick = () => jobForm({ id: '', target: d.targets[0].name, folder: 'TNAS-Backup', sources: [], encrypt: true, versions: true, enabled: true }, true);
+  $$('[data-edit]').forEach(b => b.onclick = () => jobForm(d.jobs.find(j => j.id === b.dataset.edit), false));
+  $$('[data-jdel]').forEach(b => b.onclick = () => confirmBox('Auftrag löschen',
+    'Der Auftrag wird entfernt. Bereits hochgeladene Daten bleiben beim Anbieter erhalten.', 'Löschen',
+    async () => { await api('cloud/job/delete', { id: b.dataset.jdel }); toast('Auftrag gelöscht'); route(); }));
+  $$('[data-tdel]').forEach(b => b.onclick = () => confirmBox('Konto entfernen',
+    `Die Verbindung zu <b>${esc(b.dataset.tdel)}</b> wird gelöscht (auch das hier gespeicherte Verschlüsselungs-Passwort). Daten beim Anbieter bleiben erhalten.`, 'Entfernen',
+    async () => { await api('cloud/target/delete', { name: b.dataset.tdel }); toast('Konto entfernt'); route(); }));
+  $$('[data-test]').forEach(b => b.onclick = async () => {
+    const cell = $(`[data-about="${b.dataset.test}"]`); cell.textContent = 'prüfe …';
+    try { const a = await api('cloud/test', { name: b.dataset.test });
+      cell.textContent = a.total ? `${bytes(a.used)} von ${bytes(a.total)} belegt` : 'Verbindung ok';
+    } catch (e) { cell.textContent = e.message; }
+  });
+  $$('[data-run]').forEach(b => b.onclick = async () => { try { await api('cloud/run', { id: b.dataset.run }); toast('Upload gestartet'); setTimeout(route, 1500); } catch (e) { toast(e.message, true); } });
+  $('#runAll') && ($('#runAll').onclick = async () => { try { await api('cloud/run', { id: '' }); toast('Upload gestartet'); setTimeout(route, 1500); } catch (e) { toast(e.message, true); } });
+  $$('[data-stop]').forEach(b => b.onclick = async () => { await api('cloud/run', { stop: true }); toast('Abgebrochen'); setTimeout(route, 1500); });
+  if (d.running) refreshTimer = setInterval(() => { if (location.hash.startsWith('#/cloud') && $('#modal').classList.contains('hidden')) route(); }, 15000);
+};
+
 // Benutzer
 pages.users = async () => {
   const d = await api('users');
@@ -483,7 +591,7 @@ pages.services = async () => {
 
 // Protokolle
 pages.logs = async () => {
-  const names = { gui: 'Diese Oberfläche', messages: 'System', samba: 'Samba' };
+  const names = { gui: 'Diese Oberfläche', cloud: 'Cloud-Backup', messages: 'System', samba: 'Samba' };
   const cur = (location.hash.split('?name=')[1]) || 'gui';
   const d = await api('logs?name=' + encodeURIComponent(cur));
   $('#main').innerHTML = `<h1>Protokolle</h1><div class="toolbar">${Object.entries(names).map(([k, v]) =>

@@ -23,6 +23,7 @@ type App struct {
 	cfg    *Config
 	auth   *authState
 	shares *shareStore
+	cloud  cloudState
 	logger *log.Logger
 }
 
@@ -30,6 +31,7 @@ func main() {
 	cfgPath := flag.String("config", "/etc/tnas-backup-gui/config.json", "Konfigurationsdatei")
 	renderSmb := flag.Bool("render-smb", false, "nur smb.conf aus der Freigaben-Liste erzeugen und beenden (für das Samba-Startskript)")
 	showVersion := flag.Bool("version", false, "Version anzeigen")
+	cloudRun := flag.Bool("cloud-run", false, "alle aktiven Cloud-Backup-Aufträge ausführen und beenden (für das nächtliche Backup-Skript)")
 	flag.Parse()
 	if *showVersion {
 		fmt.Println(version)
@@ -51,6 +53,10 @@ func main() {
 	}
 	app.logger = log.New(logOut, "", log.LstdFlags)
 	app.auth.logf = app.logf
+
+	if *cloudRun {
+		os.Exit(app.cloudRunCLI())
+	}
 
 	if *renderSmb {
 		// Aufruf aus /etc/init.d/samba: bei Fehler Exitcode != 0, dann nimmt das Skript den TOS-Generator
@@ -110,6 +116,14 @@ func main() {
 	mux.HandleFunc("POST /api/files/streamlink", a(app.apiStreamLink))
 	mux.HandleFunc("GET /api/files/m3u", a(app.apiStreamM3U))
 	mux.HandleFunc("GET /stream/", app.handleStream)
+	mux.HandleFunc("GET /api/cloud", a(app.apiCloud))
+	mux.HandleFunc("POST /api/cloud/auth/start", a(app.apiCloudAuthStart))
+	mux.HandleFunc("POST /api/cloud/auth/finish", a(app.apiCloudAuthFinish))
+	mux.HandleFunc("POST /api/cloud/target/delete", a(app.apiCloudTargetDelete))
+	mux.HandleFunc("POST /api/cloud/test", a(app.apiCloudTest))
+	mux.HandleFunc("POST /api/cloud/job/save", a(app.apiCloudJobSave))
+	mux.HandleFunc("POST /api/cloud/job/delete", a(app.apiCloudJobDelete))
+	mux.HandleFunc("POST /api/cloud/run", a(app.apiCloudRun))
 
 	static, _ := fs.Sub(webFS, "web")
 	files := http.FileServer(http.FS(static))
