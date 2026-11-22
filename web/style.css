@@ -119,6 +119,8 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 1
 .modal-box.wide { width: 1000px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; padding: 16px 20px; }
 .v-head { flex: none; }
 .v-head h2 { margin-bottom: 6px; word-break: break-all; }
+.x-close { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: 15px; line-height: 1; margin: -4px 4px 0 -6px; }
+.x-close:hover { background: var(--line); }
 .v-path { margin-bottom: 8px; font-size: 12px; word-break: break-all; }
 .v-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .v-foot { flex: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }

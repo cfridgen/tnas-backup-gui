@@ -193,8 +193,20 @@ func (app *App) apiFileSearch(w http.ResponseWriter, r *http.Request, s *session
 
 const viewMax = 512 << 10
 
+// Medientypen fest vorgegeben – die Mime-Tabellen auf dem NAS sind unvollständig (".ts" = Qt-Übersetzung …)
+var mediaTypes = map[string]string{
+	".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".mkv": "video/x-matroska",
+	".avi": "video/x-msvideo", ".divx": "video/x-msvideo", ".mpg": "video/mpeg", ".mpeg": "video/mpeg", ".vob": "video/mpeg",
+	".ts": "video/mp2t", ".m2ts": "video/mp2t", ".mts": "video/mp2t", ".wmv": "video/x-ms-wmv", ".flv": "video/x-flv", ".3gp": "video/3gpp",
+	".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".flac": "audio/flac", ".ogg": "audio/ogg", ".oga": "audio/ogg",
+	".opus": "audio/ogg", ".wav": "audio/wav", ".wma": "audio/x-ms-wma", ".aiff": "audio/aiff", ".aif": "audio/aiff",
+}
+
 func fileKind(name string, head []byte) (kind, mimeType string) {
 	ext := strings.ToLower(filepath.Ext(name))
+	if mt, ok := mediaTypes[ext]; ok {
+		return strings.SplitN(mt, "/", 2)[0], mt
+	}
 	mimeType = mime.TypeByExtension(ext)
 	if mimeType == "" {
 		mimeType = http.DetectContentType(head)

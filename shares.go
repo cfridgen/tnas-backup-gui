@@ -20,10 +20,10 @@ type Share struct {
 	Path     string            `json:"path"`
 	Comment  string            `json:"comment"`
 	Browse   bool              `json:"browsable"`
-	Guest    bool              `json:"guest"`     // Gastzugang ohne Passwort
-	ReadOnly bool              `json:"read_only"` // für alle nur lesend (überstimmt Benutzerrechte)
-	Recycle  bool              `json:"recycle"`   // Papierkorb (#recycle)
-	Users    map[string]string `json:"users"`     // Benutzer -> "rw" | "ro"
+	Guest    bool              `json:"guest"`            // Gastzugang ohne Passwort
+	ReadOnly bool              `json:"read_only"`        // für alle nur lesend (überstimmt Benutzerrechte)
+	Recycle  bool              `json:"recycle"`          // Papierkorb (#recycle)
+	Users    map[string]string `json:"users"`            // Benutzer -> "rw" | "ro"
 	System   string            `json:"system,omitempty"` // z. B. "versions" für die Backup-Versionen-Freigabe
 }
 

@@ -300,6 +300,14 @@ async function searchFiles(q) {
   } catch (e) { $('#fList').innerHTML = `<div class="banner bad">${esc(e.message)}</div>`; }
 }
 
+function noPlay(d) {
+  const ext = (d.name.match(/\.([^.]+)$/) || [, ''])[1].toUpperCase();
+  return `<div class="banner warn">▶ Dieses ${d.kind === 'audio' ? 'Audio' : 'Video'}format${ext ? ` (${esc(ext)})` : ''} kann der Browser nicht abspielen.
+    Browser beherrschen nur MP4/H.264, WebM und ähnliche Formate – ältere wie AVI (DivX/XviD), MPEG, VOB, TS oder WMV
+    sowie MP4 mit H.265 oder AC3-Ton nicht. Zum Ansehen bitte herunterladen und z. B. mit <b>VLC</b> öffnen
+    – oder direkt über die Freigabe im Finder.</div>`;
+}
+
 async function viewFile(root, path) {
   const box = $('#modalBox');
   box.classList.add('wide');
@@ -313,18 +321,27 @@ async function viewFile(root, path) {
   switch (d.kind) {
     case 'text': content = `<pre class="viewer-text">${esc(d.text)}</pre>${d.truncated ? '<p class="muted">Nur die ersten 512 KB werden angezeigt.</p>' : ''}${d.encoding !== 'UTF-8' ? `<p class="muted">Zeichensatz: ${esc(d.encoding)}</p>` : ''}`; break;
     case 'image': content = `<img class="viewer-media" src="${raw()}" alt="">`; break;
-    case 'audio': content = `<audio class="viewer-media" controls src="${raw()}"></audio>`; break;
-    case 'video': content = `<video class="viewer-media" controls src="${raw()}"></video>`; break;
+    case 'audio':
+    case 'video': {
+      const probe = document.createElement(d.kind);
+      content = probe.canPlayType(d.mime) === '' ? noPlay(d)
+        : `<div id="vMedia"><${d.kind} class="viewer-media" controls preload="metadata" src="${raw()}"></${d.kind}></div>`;
+      break;
+    }
     case 'pdf': content = `<iframe class="viewer-pdf" src="${raw()}"></iframe>`; break;
     default: content = `<p class="muted">Binärdatei (${esc(d.mime)}) – Vorschau der ersten Bytes:</p><pre class="viewer-text">${esc(d.hex)}</pre>`;
   }
-  box.innerHTML = `<div class="v-head"><div class="row"><h2>${esc(d.name)}</h2><span class="spacer"></span><span class="muted">${bytes(d.size)} · geändert ${fmtTime(d.mtime)}</span></div>
+  box.innerHTML = `<div class="v-head"><div class="row"><button class="x-close" id="vX" title="Schließen (Esc)" aria-label="Schließen">✕</button><h2>${esc(d.name)}</h2><span class="spacer"></span><span class="muted">${bytes(d.size)} · geändert ${fmtTime(d.mtime)}</span></div>
     ${root.startsWith('snap:') ? `<div class="mode-banner">🕘 Backup-Version: ${esc(rootLabel(root))}</div>` : ''}
     <div class="muted v-path"><code>${esc(path)}</code></div></div>
     <div class="v-body">${content}
     <h2 class="mt">Versionen dieser Datei</h2><div id="vHist" class="muted v-hist">Lade …</div></div>
     <div class="modal-actions v-foot"><a href="${raw(true)}"><button>⬇ Herunterladen</button></a><button id="vClose" class="primary">Schließen</button></div>`;
   $('#vClose').onclick = close;
+  $('#vX').onclick = close;
+  // Format wird gemeldet, aber der Inhalt (z. B. H.265, AC3) lässt sich doch nicht abspielen
+  const media = $('#vMedia video, #vMedia audio');
+  if (media) media.addEventListener('error', () => { $('#vMedia').innerHTML = noPlay(d); });
   try {
     const h = await api('files/history?' + qs({ root, path }));
     if (!h.versions.length) { $('#vHist').textContent = h.note || 'Keine Versionen.'; return; }

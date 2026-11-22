@@ -24,18 +24,18 @@ type FS struct {
 }
 
 type Disk struct {
-	Dev        string `json:"dev"`
-	Model      string `json:"model"`
-	Serial     string `json:"serial"`
-	Size       uint64 `json:"size"`
-	Role       string `json:"role"`
-	Health     string `json:"health"` // PASSED / FAILED / ""
-	TempC      int    `json:"temp_c"`
-	PowerOnH   int    `json:"power_on_h"`
-	Realloc    int    `json:"realloc"`
-	Pending    int    `json:"pending"`
-	Uncorrect  int    `json:"uncorrectable"`
-	Sleeping   bool   `json:"sleeping"`
+	Dev        string      `json:"dev"`
+	Model      string      `json:"model"`
+	Serial     string      `json:"serial"`
+	Size       uint64      `json:"size"`
+	Role       string      `json:"role"`
+	Health     string      `json:"health"` // PASSED / FAILED / ""
+	TempC      int         `json:"temp_c"`
+	PowerOnH   int         `json:"power_on_h"`
+	Realloc    int         `json:"realloc"`
+	Pending    int         `json:"pending"`
+	Uncorrect  int         `json:"uncorrectable"`
+	Sleeping   bool        `json:"sleeping"`
 	Attributes []SmartAttr `json:"attributes,omitempty"`
 }
 
@@ -217,7 +217,7 @@ func diskList(withAttrs bool) []Disk {
 		}
 		sectors, _ := strconv.ParseUint(readTrim("/sys/block/"+n+"/size"), 10, 64)
 		d := Disk{Dev: "/dev/" + n, Size: sectors * 512,
-			Model: strings.TrimSpace(readTrim("/sys/block/" + n + "/device/vendor") + " " + readTrim("/sys/block/"+n+"/device/model"))}
+			Model: strings.TrimSpace(readTrim("/sys/block/"+n+"/device/vendor") + " " + readTrim("/sys/block/"+n+"/device/model"))}
 		if d.Size < 4<<30 {
 			d.Role = "System-Flash"
 		} else {
@@ -295,11 +295,11 @@ func (app *App) apiDashboard(w http.ResponseWriter, r *http.Request, s *session)
 	backupOK := last != nil && time.Since(last.Time) < time.Duration(app.cfg.BackupMaxAgeH)*time.Hour
 	writeJSON(w, 200, map[string]any{
 		"hostname": host, "kernel": readTrim("/proc/sys/kernel/osrelease"),
-		"model":   readTrim("/proc/device-tree/model"), "arch": runtime.GOARCH, "version": version,
-		"uptime":  uptime(), "load": load, "cpu_pct": cpuPercent(), "cpu_temp": cpuTemp(),
-		"cpus":    runtime.NumCPU(), "mem_total": total, "mem_avail": avail,
-		"fs":      filesystems(app.cfg), "disks": diskList(false), "net": netInfo(app.cfg),
-		"backup":  map[string]any{"source": app.cfg.BackupSource, "last": last, "count": len(snaps), "ok": backupOK, "max_age_h": app.cfg.BackupMaxAgeH},
+		"model": readTrim("/proc/device-tree/model"), "arch": runtime.GOARCH, "version": version,
+		"uptime": uptime(), "load": load, "cpu_pct": cpuPercent(), "cpu_temp": cpuTemp(),
+		"cpus": runtime.NumCPU(), "mem_total": total, "mem_avail": avail,
+		"fs": filesystems(app.cfg), "disks": diskList(false), "net": netInfo(app.cfg),
+		"backup":   map[string]any{"source": app.cfg.BackupSource, "last": last, "count": len(snaps), "ok": backupOK, "max_age_h": app.cfg.BackupMaxAgeH},
 		"services": services(), "time": time.Now(),
 	})
 }

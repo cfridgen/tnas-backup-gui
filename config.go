@@ -8,11 +8,11 @@ import (
 // Config enthält alle gerätespezifischen Einstellungen. Die Vorgaben passen zu einem
 // TerraMaster mit TOS 4 (Realtek RTD1296); abweichende Werte in /etc/tnas-backup-gui/config.json.
 type Config struct {
-	Listen        string `json:"listen"`         // Adresse der Weboberfläche
-	DataDir       string `json:"data_dir"`       // Datenvolume (Freigaben nur darunter)
-	SnapshotDir   string `json:"snapshot_dir"`   // btrfs-Schnappschüsse des Backups
-	BackupDir     string `json:"backup_dir"`     // Ordner, dessen Unterordner geschnappschusst werden
-	BackupSource  string `json:"backup_source"`  // Anzeigename der Backup-Quelle (z. B. "OMV")
+	Listen        string `json:"listen"`        // Adresse der Weboberfläche
+	DataDir       string `json:"data_dir"`      // Datenvolume (Freigaben nur darunter)
+	SnapshotDir   string `json:"snapshot_dir"`  // btrfs-Schnappschüsse des Backups
+	BackupDir     string `json:"backup_dir"`    // Ordner, dessen Unterordner geschnappschusst werden
+	BackupSource  string `json:"backup_source"` // Anzeigename der Backup-Quelle (z. B. "OMV")
 	BackupMaxAgeH int    `json:"backup_max_age_h"`
 	StateDir      string `json:"state_dir"`   // eigene Daten (Freigaben-Konfiguration)
 	SmbConf       string `json:"smb_conf"`    // erzeugte Samba-Konfiguration
