@@ -1,0 +1,14 @@
+#!/bin/sh /etc/rc.common
+# tnas-backup-gui – Weboberfläche (procd, TOS 4 / OpenWrt)
+START=99
+STOP=05
+USE_PROCD=1
+
+start_service() {
+    procd_open_instance
+    procd_set_param command /opt/tnas-backup-gui/tnas-backup-gui -config /etc/tnas-backup-gui/config.json
+    procd_set_param respawn 3600 5 0
+    procd_set_param stdout 0
+    procd_set_param stderr 0
+    procd_close_instance
+}
