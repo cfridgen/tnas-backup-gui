@@ -309,14 +309,14 @@ function noPlay(d) {
     (Browser können nur MP4/H.264, WebM u. Ä. – nicht AVI/DivX/XviD, MPEG, VOB, TS, WMV oder MP4 mit H.265/AC3).
     Browser-Plugins dafür gibt es seit Jahren nicht mehr – stattdessen streamt ein Videoplayer auf deinem Rechner die Datei direkt vom NAS:</p>
     <div class="row">
-      <a class="btn-link" id="pM3u"><button class="primary">▶ Im Videoplayer öffnen</button></a>
-      ${isMac ? '<button id="pIina">In IINA öffnen</button>' : ''}
-      ${isLinux ? '<button id="pVlc" title="Benötigt einen vlc://-Link-Vermittler (siehe README)">In VLC öffnen</button>' : ''}
+      ${isLinux ? '<button id="pVlc" class="primary" title="Benötigt einen vlc://-Link-Vermittler (siehe README)">▶ In VLC öffnen</button>' : ''}
+      ${isMac ? '<button id="pIina" class="primary">▶ In IINA öffnen</button>' : ''}
+      <a class="btn-link" id="pM3u"><button class="${isLinux || isMac ? '' : 'primary'}">${isLinux || isMac ? '' : '▶ '}Abspielliste herunterladen (.m3u)</button></a>
       <button id="pLink">Stream-Link anzeigen</button>
     </div>
     <div id="pLinkBox" class="hidden"><input id="pLinkIn" readonly class="w100">
       <p class="muted">Im Player „Netzwerk-Stream öffnen“ wählen und den Link einfügen. Gültig 12 Stunden, nur von diesem Rechner.</p></div>
-    <p class="muted">„Im Videoplayer öffnen“ lädt eine kleine Abspielliste (.m3u) herunter – einmal anklicken, dann öffnet sie der Player.
+    <p class="muted">Die Abspielliste landet im Download-Ordner – dort anklicken, dann öffnet sie der Player.
     Noch keiner installiert? <a href="https://www.videolan.org/vlc/" target="_blank" rel="noopener">VLC herunterladen</a> (Mac, Windows, Linux)${isMac ? ' oder <a href="https://iina.io/" target="_blank" rel="noopener">IINA</a> (nur Mac, moderner)' : ''}.</p></div>`;
 }
 
