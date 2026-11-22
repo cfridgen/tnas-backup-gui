@@ -13,7 +13,7 @@ NAS, German UI.*
 |---|---|
 | **Übersicht** | System, CPU/RAM/Temperatur, Speicherbelegung, Festplattenzustand, Netzwerk, Wake-on-LAN-Status, Stand des letzten Backups (Warnung, wenn älter als 36 h) |
 | **Datenträger** | Dateisysteme, Festplatten mit SMART-Werten (schlafende Platten werden nicht geweckt) |
-| **Dateien** | Dateibrowser über alle Freigaben **und jede Backup-Version**, Suche nach Dateinamen, Anzeige von Text (UTF-8/Latin-1), Bildern, Audio, Video, PDF und Hex-Vorschau, Download; je Datei die **Versionsgeschichte** über alle Backup-Stände (nur lesend) |
+| **Dateien** | Dateibrowser über alle Freigaben **und jede Backup-Version**, Suche nach Dateinamen, Anzeige von Text (UTF-8/Latin-1), Bildern, Audio, Video, PDF und Hex-Vorschau, Download; je Datei die **Versionsgeschichte** über alle Backup-Stände (nur lesend). Formate, die Browser nicht abspielen (AVI, MPEG, VOB, TS, WMV, H.265 …), lassen sich per Klick im lokalen Videoplayer (VLC, IINA) streamen – über eine Abspielliste bzw. einen befristeten, an die IP gebundenen Stream-Link |
 | **Freigaben (SMB)** | anlegen / bearbeiten / entfernen, Rechte je Benutzer (lesen+schreiben / nur lesen / kein Zugriff), Gastzugang, „für alle nur lesen“, Sichtbarkeit, Papierkorb |
 | **Backup-Versionen** | btrfs-Schnappschüsse anzeigen und löschen; optional schreibgeschützte Freigabe `Backup-Versionen`, um ältere Stände direkt im Finder/Explorer zu öffnen |
 | **Benutzer** | anzeigen, Passwort ändern, anlegen, löschen, Administrator-Recht |

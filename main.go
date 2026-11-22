@@ -107,6 +107,9 @@ func main() {
 	mux.HandleFunc("GET /api/files/view", a(app.apiFileView))
 	mux.HandleFunc("GET /api/files/raw", a(app.apiFileRaw))
 	mux.HandleFunc("GET /api/files/history", a(app.apiFileHistory))
+	mux.HandleFunc("POST /api/files/streamlink", a(app.apiStreamLink))
+	mux.HandleFunc("GET /api/files/m3u", a(app.apiStreamM3U))
+	mux.HandleFunc("GET /stream/", app.handleStream)
 
 	static, _ := fs.Sub(webFS, "web")
 	files := http.FileServer(http.FS(static))

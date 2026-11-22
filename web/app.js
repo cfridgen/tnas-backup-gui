@@ -300,12 +300,37 @@ async function searchFiles(q) {
   } catch (e) { $('#fList').innerHTML = `<div class="banner bad">${esc(e.message)}</div>`; }
 }
 
+const isMac = /Mac OS X|Macintosh/.test(navigator.userAgent);
+
 function noPlay(d) {
   const ext = (d.name.match(/\.([^.]+)$/) || [, ''])[1].toUpperCase();
-  return `<div class="banner warn">▶ Dieses ${d.kind === 'audio' ? 'Audio' : 'Video'}format${ext ? ` (${esc(ext)})` : ''} kann der Browser nicht abspielen.
-    Browser beherrschen nur MP4/H.264, WebM und ähnliche Formate – ältere wie AVI (DivX/XviD), MPEG, VOB, TS oder WMV
-    sowie MP4 mit H.265 oder AC3-Ton nicht. Zum Ansehen bitte herunterladen und z. B. mit <b>VLC</b> öffnen
-    – oder direkt über die Freigabe im Finder.</div>`;
+  return `<div class="banner warn"><p>▶ Dieses ${d.kind === 'audio' ? 'Audio' : 'Video'}format${ext ? ` (${esc(ext)})` : ''} kann der Browser nicht abspielen
+    (Browser können nur MP4/H.264, WebM u. Ä. – nicht AVI/DivX/XviD, MPEG, VOB, TS, WMV oder MP4 mit H.265/AC3).
+    Browser-Plugins dafür gibt es seit Jahren nicht mehr – stattdessen streamt ein Videoplayer auf deinem Rechner die Datei direkt vom NAS:</p>
+    <div class="row">
+      <a class="btn-link" id="pM3u"><button class="primary">▶ Im Videoplayer öffnen</button></a>
+      ${isMac ? '<button id="pIina">In IINA öffnen</button>' : ''}
+      <button id="pLink">Stream-Link anzeigen</button>
+    </div>
+    <div id="pLinkBox" class="hidden"><input id="pLinkIn" readonly class="w100">
+      <p class="muted">Im Player „Netzwerk-Stream öffnen“ wählen und den Link einfügen. Gültig 12 Stunden, nur von diesem Rechner.</p></div>
+    <p class="muted">„Im Videoplayer öffnen“ lädt eine kleine Abspielliste (.m3u) herunter – einmal anklicken, dann öffnet sie der Player.
+    Noch keiner installiert? <a href="https://www.videolan.org/vlc/" target="_blank" rel="noopener">VLC herunterladen</a> (Mac, Windows, Linux)${isMac ? ' oder <a href="https://iina.io/" target="_blank" rel="noopener">IINA</a> (nur Mac, moderner)' : ''}.</p></div>`;
+}
+
+// Knöpfe im Hinweis mit Datei verknüpfen (auch wenn der Hinweis erst nach einem Abspielfehler erscheint)
+function bindNoPlay(root, path) {
+  const m3u = $('#pM3u');
+  if (!m3u) return;
+  m3u.href = '/api/files/m3u?' + qs({ root, path });
+  const link = async () => (await api('files/streamlink', { root, path })).url;
+  if ($('#pIina')) $('#pIina').onclick = async () => {
+    try { location.href = 'iina://weblink?url=' + encodeURIComponent(await link()); } catch (e) { toast(e.message, true); }
+  };
+  $('#pLink').onclick = async () => {
+    try { $('#pLinkIn').value = await link(); $('#pLinkBox').classList.remove('hidden'); $('#pLinkIn').select(); } catch (e) { toast(e.message, true); }
+  };
+  $('#pLinkIn').onfocus = e => e.target.select();
 }
 
 async function viewFile(root, path) {
@@ -341,7 +366,8 @@ async function viewFile(root, path) {
   $('#vX').onclick = close;
   // Format wird gemeldet, aber der Inhalt (z. B. H.265, AC3) lässt sich doch nicht abspielen
   const media = $('#vMedia video, #vMedia audio');
-  if (media) media.addEventListener('error', () => { $('#vMedia').innerHTML = noPlay(d); });
+  if (media) media.addEventListener('error', () => { $('#vMedia').innerHTML = noPlay(d); bindNoPlay(root, path); });
+  bindNoPlay(root, path);
   try {
     const h = await api('files/history?' + qs({ root, path }));
     if (!h.versions.length) { $('#vHist').textContent = h.note || 'Keine Versionen.'; return; }
