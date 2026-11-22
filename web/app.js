@@ -35,7 +35,7 @@ function toast(msg, bad = false) {
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), bad ? 7000 : 3500);
 }
 
-async function api(path, body) {
+async function api(path, body, retried) {
   const opt = { headers: {} };
   if (body !== undefined) {
     opt.method = 'POST'; opt.body = JSON.stringify(body);
@@ -43,7 +43,13 @@ async function api(path, body) {
   }
   const r = await fetch('/api/' + path, opt);
   let data = {}; try { data = await r.json(); } catch (_) { }
-  if (r.status === 401 && path !== 'login') { showLogin(); throw new Error(data.error || 'Nicht angemeldet'); }
+  if (r.status === 401 && path !== 'login' && path !== 'session') {
+    // Sitzung abgelaufen: über das gemerkte Gerät still neu anmelden und Aufruf wiederholen
+    if (!retried) {
+      try { const s = await api('session'); if (s.user) { S = s; return api(path, body, true); } } catch (_) { }
+    }
+    showLogin(); throw new Error(data.error || 'Nicht angemeldet');
+  }
   if (!r.ok) throw new Error(data.error || ('Fehler ' + r.status));
   return data;
 }
@@ -77,7 +83,7 @@ function showLogin() {
 $('#loginForm').onsubmit = async e => {
   e.preventDefault(); $('#loginErr').textContent = '';
   try {
-    const d = await api('login', { user: $('#loginUser').value.trim(), password: $('#loginPass').value });
+    const d = await api('login', { user: $('#loginUser').value.trim(), password: $('#loginPass').value, remember: $('#loginRemember').checked });
     S.user = d.user; S.csrf = d.csrf; $('#loginPass').value = ''; start();
   } catch (err) { $('#loginErr').textContent = err.message; }
 };
@@ -312,11 +318,12 @@ async function viewFile(root, path) {
     case 'pdf': content = `<iframe class="viewer-pdf" src="${raw()}"></iframe>`; break;
     default: content = `<p class="muted">Binärdatei (${esc(d.mime)}) – Vorschau der ersten Bytes:</p><pre class="viewer-text">${esc(d.hex)}</pre>`;
   }
-  box.innerHTML = `<div class="row"><h2>${esc(d.name)}</h2><span class="spacer"></span><span class="muted">${bytes(d.size)} · geändert ${fmtTime(d.mtime)}</span></div>
+  box.innerHTML = `<div class="v-head"><div class="row"><h2>${esc(d.name)}</h2><span class="spacer"></span><span class="muted">${bytes(d.size)} · geändert ${fmtTime(d.mtime)}</span></div>
     ${root.startsWith('snap:') ? `<div class="mode-banner">🕘 Backup-Version: ${esc(rootLabel(root))}</div>` : ''}
-    <p class="muted"><code>${esc(path)}</code></p>${content}
-    <h2 class="mt">Versionen dieser Datei</h2><div id="vHist" class="muted">Lade …</div>
-    <div class="modal-actions"><a href="${raw(true)}"><button>⬇ Herunterladen</button></a><button id="vClose" class="primary">Schließen</button></div>`;
+    <div class="muted v-path"><code>${esc(path)}</code></div></div>
+    <div class="v-body">${content}
+    <h2 class="mt">Versionen dieser Datei</h2><div id="vHist" class="muted v-hist">Lade …</div></div>
+    <div class="modal-actions v-foot"><a href="${raw(true)}"><button>⬇ Herunterladen</button></a><button id="vClose" class="primary">Schließen</button></div>`;
   $('#vClose').onclick = close;
   try {
     const h = await api('files/history?' + qs({ root, path }));
@@ -367,7 +374,12 @@ pages.users = async () => {
     <td class="actions"><button data-pw="${esc(u.name)}">Passwort ändern</button> ${u.me ? '' : `<button class="danger" data-del="${esc(u.name)}">Löschen</button>`}</td></tr>`).join('');
   $('#main').innerHTML = `<h1>Benutzer</h1><div class="toolbar"><button class="primary" id="addUser">+ Benutzer anlegen</button>
     <span class="muted">Administratoren dürfen sich an dieser Oberfläche anmelden. Alle Benutzer können – je nach Freigabe – per SMB zugreifen.</span></div>
-    <div class="card table-wrap"><table><thead><tr><th>Name</th><th>Rolle</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="card table-wrap"><table><thead><tr><th>Name</th><th>Rolle</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <h2>Gemerkte Geräte (automatische Anmeldung)</h2>
+    <p class="muted">Browser, die sich mit „Auf diesem Gerät angemeldet bleiben“ angemeldet haben. Sie gelten nur von derselben IP-Adresse aus;
+    „Abmelden“ oder eine Passwortänderung entfernt sie ebenfalls.</p>
+    <div class="card table-wrap" id="devList"><p class="muted">Lade …</p></div>`;
+  loadDevices();
   const pwFields = `<label>Neues Passwort (mind. 8 Zeichen)<input id="p1" type="password" autocomplete="new-password"></label>
     <label>Wiederholen<input id="p2" type="password" autocomplete="new-password"></label>`;
   const pwCheck = box => { if ($('#p1', box).value !== $('#p2', box).value) throw new Error('Passwörter stimmen nicht überein'); return $('#p1', box).value; };
@@ -387,6 +399,27 @@ pages.users = async () => {
     catch (e) { toast(e.message, true); c.checked = !c.checked; }
   });
 };
+
+function agentName(ua) {
+  const b = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const o = /Mac OS X/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return b + (o ? ' auf ' + o : '');
+}
+
+async function loadDevices() {
+  try {
+    const d = await api('devices');
+    $('#devList').innerHTML = d.devices.length ? `<table><thead><tr><th>Benutzer</th><th>Gerät</th><th>IP</th><th>Gemerkt seit</th><th>Zuletzt</th><th></th></tr></thead><tbody>
+      ${d.devices.map(x => `<tr><td>${esc(x.user)}</td><td title="${esc(x.agent)}">${esc(agentName(x.agent))}${x.current ? ' ' + pill('ok', 'dieser Browser') : ''}</td>
+      <td>${esc(x.ip)}</td><td>${fmtTime(x.created)}</td><td>${ago(x.last_used)}</td>
+      <td class="actions"><button class="danger" data-dev="${esc(x.id)}">Entfernen</button></td></tr>`).join('')}</tbody></table>`
+      : '<p class="muted">Keine gemerkten Geräte.</p>';
+    $$('[data-dev]').forEach(b => b.onclick = async () => {
+      try { await api('devices/revoke', { id: b.dataset.dev }); toast('Gerät entfernt – dort ist wieder eine Anmeldung nötig'); loadDevices(); }
+      catch (e) { toast(e.message, true); }
+    });
+  } catch (e) { $('#devList').innerHTML = `<div class="banner bad">${esc(e.message)}</div>`; }
+}
 
 // Dienste
 pages.services = async () => {

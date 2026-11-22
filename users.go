@@ -91,6 +91,7 @@ func (app *App) apiUserPassword(w http.ResponseWriter, r *http.Request, s *sessi
 		writeErr(w, 500, "Passwort konnte nicht gesetzt werden: %v", err)
 		return
 	}
+	app.auth.revokeUserDevices(req.User, r) // gemerkte Geräte ungültig (außer diesem Browser)
 	app.logf("%s: Passwort geändert für %s", s.user, req.User)
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
@@ -154,6 +155,7 @@ func (app *App) apiUserDelete(w http.ResponseWriter, r *http.Request, s *session
 		}
 	}
 	_ = app.auth.saveAdmins(keep)
+	app.auth.revokeUserDevices(req.User, r)
 	// aus allen Freigaben entfernen
 	app.shares.mu.Lock()
 	if list, err := app.shares.load(); err == nil {

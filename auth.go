@@ -22,7 +22,7 @@ import (
 	"github.com/GehirnInc/crypt/sha512_crypt"
 )
 
-const shadowPath = "/etc/shadow"
+var shadowPath = "/etc/shadow" // in Tests ersetzbar
 
 type session struct {
 	user    string
@@ -35,6 +35,19 @@ type authState struct {
 	sessions map[string]*session
 	fails    map[string][]time.Time // IP -> Fehlversuche
 	cfg      *Config
+	logf     func(format string, a ...any)
+}
+
+// newSession legt eine Sitzung an und setzt das Sitzungs-Cookie.
+func (a *authState) newSession(w http.ResponseWriter, user string) *session {
+	s := &session{user: user, csrf: randHex(16), expires: time.Now().Add(time.Duration(a.cfg.SessionHours) * time.Hour)}
+	id := randHex(32)
+	a.mu.Lock()
+	a.sessions[id] = s
+	a.mu.Unlock()
+	http.SetCookie(w, &http.Cookie{Name: "tbg_session", Value: id, Path: "/", HttpOnly: true,
+		SameSite: http.SameSiteStrictMode, Expires: s.expires})
+	return s
 }
 
 func newAuth(cfg *Config) *authState {
@@ -211,7 +224,10 @@ func (a *authState) addFail(ip string) {
 }
 
 func (a *authState) login(w http.ResponseWriter, r *http.Request) {
-	var req struct{ User, Password string }
+	var req struct {
+		User, Password string
+		Remember       bool
+	}
 	if err := readBody(r, &req); err != nil {
 		writeErr(w, 400, "Ungültige Anfrage")
 		return
@@ -227,13 +243,11 @@ func (a *authState) login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 401, "Benutzername oder Passwort falsch (oder kein Administrator).")
 		return
 	}
-	s := &session{user: req.User, csrf: randHex(16), expires: time.Now().Add(time.Duration(a.cfg.SessionHours) * time.Hour)}
-	id := randHex(32)
-	a.mu.Lock()
-	a.sessions[id] = s
-	a.mu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: "tbg_session", Value: id, Path: "/", HttpOnly: true,
-		SameSite: http.SameSiteStrictMode, Expires: s.expires})
+	s := a.newSession(w, req.User)
+	if req.Remember {
+		a.rememberDevice(w, r, req.User)
+	}
+	a.logf("Anmeldung: %s von %s (Gerät merken: %v)", req.User, ip, req.Remember)
 	writeJSON(w, 200, map[string]string{"user": s.user, "csrf": s.csrf})
 }
 
@@ -244,6 +258,7 @@ func (a *authState) logout(w http.ResponseWriter, r *http.Request) {
 		a.mu.Unlock()
 	}
 	http.SetCookie(w, &http.Cookie{Name: "tbg_session", Value: "", Path: "/", MaxAge: -1})
+	a.forgetDevice(w, r) // „Abmelden“ heißt auch: dieses Gerät nicht mehr automatisch anmelden
 	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 

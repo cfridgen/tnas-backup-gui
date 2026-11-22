@@ -163,6 +163,9 @@ func (app *App) logf(format string, a ...any) {
 
 func (app *App) apiSession(w http.ResponseWriter, r *http.Request) {
 	s := app.auth.current(r)
+	if s == nil {
+		s = app.auth.autoLogin(w, r)
+	}
 	host, _ := os.Hostname()
 	if s == nil {
 		writeJSON(w, 200, map[string]any{"user": nil, "hostname": host, "version": version})

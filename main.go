@@ -50,6 +50,7 @@ func main() {
 		logOut = io.MultiWriter(os.Stderr, f)
 	}
 	app.logger = log.New(logOut, "", log.LstdFlags)
+	app.auth.logf = app.logf
 
 	if *renderSmb {
 		// Aufruf aus /etc/init.d/samba: bei Fehler Exitcode != 0, dann nimmt das Skript den TOS-Generator
@@ -98,6 +99,8 @@ func main() {
 	mux.HandleFunc("POST /api/services/restart", a(app.apiServiceRestart))
 	mux.HandleFunc("POST /api/power", a(app.apiPower))
 	mux.HandleFunc("GET /api/logs", a(app.apiLogs))
+	mux.HandleFunc("GET /api/devices", a(app.apiDevices))
+	mux.HandleFunc("POST /api/devices/revoke", a(app.apiDeviceRevoke))
 	mux.HandleFunc("GET /api/files/roots", a(app.apiFileRoots))
 	mux.HandleFunc("GET /api/files/list", a(app.apiFileList))
 	mux.HandleFunc("GET /api/files/search", a(app.apiFileSearch))
